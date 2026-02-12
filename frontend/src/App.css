@@ -1,0 +1,391 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-card: #1a1a24;
+  --accent: #0088cc;
+  --accent-light: #00a8ff;
+  --text-primary: #ffffff;
+  --text-secondary: #8b8b9f;
+  --success: #00d084;
+  --warning: #ffa500;
+  --error: #ff4757;
+  --border: #2a2a3a;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  padding: 30px 0;
+}
+
+.header .icon {
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.header p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 18px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.1);
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.button-group-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button-group-item.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.button-group-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.button-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  color: white;
+}
+
+.button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 136, 204, 0.4);
+}
+
+.button-secondary {
+  background: var(--error);
+  color: white;
+}
+
+.button-secondary:hover {
+  background: #ff3344;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid var(--error);
+  border-radius: 10px;
+  color: var(--error);
+  font-size: 14px;
+}
+
+.progress-card {
+  background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-light);
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-stats {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.progress-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.result-card {
+  text-align: center;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.result-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.success-icon {
+  color: var(--success);
+}
+
+.qr-container {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  display: inline-flex;
+  margin: 16px auto;
+}
+
+.result-field {
+  text-align: left;
+}
+
+.result-field label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.copy-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.copy-field code {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+.copy-field code.small {
+  font-size: 11px;
+}
+
+.copy-field code.secret {
+  color: var(--warning);
+}
+
+.icon-button {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.private-key-field {
+  border-top: 2px solid var(--warning);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.private-key-field label {
+  color: var(--warning);
+}
+
+.toggle-button {
+  background: transparent;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.toggle-button:hover {
+  background: var(--warning);
+  color: var(--bg-primary);
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 165, 0, 0.1);
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  color: var(--warning);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.result-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Telegram WebApp specific */
+@media (max-width: 480px) {
+  .app {
+    padding: 12px;
+  }
+  
+  .header {
+    padding: 20px 0;
+  }
+  
+  .header h1 {
+    font-size: 20px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+}
