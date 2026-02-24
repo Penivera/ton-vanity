@@ -9,6 +9,11 @@ export interface VanityRequest {
     totalSupply: string;
     decimals: number;
   };
+
+export interface TonConnectRequest {
+  appName: string;
+  walletAddress: string;
+}
 }
 
 export interface GenerationProgress {

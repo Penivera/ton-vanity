@@ -18,6 +18,9 @@ const io = new Server(httpServer, {
 app.use(cors());
 app.use(express.json());
 
+// TON Connect Deep Link Generator
+import { generateTonConnectLink } from './tonConnect';
+
 // Active generation jobs
 const activeJobs = new Map<string, {
   workers: Worker[];
@@ -33,6 +36,17 @@ function createWorker(workerData: any): Worker {
   const workerPath = path.resolve(__dirname, './workers/vanityWorker.js');
   return new Worker(workerPath, { workerData });
 }
+
+// Endpoint for TON Connect
+app.post('/api/tonconnect', (req, res) => {
+  const { appName, walletAddress } = req.body;
+  if (!appName || !walletAddress) {
+    return res.status(400).json({ error: 'Missing appName or walletAddress.' });
+  }
+
+  const deepLink = generateTonConnectLink(appName, walletAddress);
+  res.status(200).json({ deepLink });
+});
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
