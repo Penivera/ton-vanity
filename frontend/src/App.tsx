@@ -68,6 +68,10 @@ function App() {
       setProgress(null);
     });
 
+    newSocket.on('log', (message: string) => {
+      console.log(message);
+    });
+
     newSocket.on('error', (data: { message: string }) => {
       setError(data.message);
       setIsGenerating(false);
