@@ -60,6 +60,7 @@ io.on('connection', (socket) => {
     }
     
     console.log(`Starting generation for pattern: ${request.pattern} (${request.type})`);
+    socket.emit('log', `Server: Pattern '${request.pattern}' received, worker generation starting.`);
     
     const workers: Worker[] = [];
     const startTime = Date.now();
