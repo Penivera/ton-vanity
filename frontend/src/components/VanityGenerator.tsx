@@ -8,13 +8,17 @@ const VanityGenerator = () => {
     error: ''
   });
 
-  const handleGenerate = async (e) => {
+  const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const response = await axios.post('/api/vanity-address', { prefix });
       setResult({ generatedAddress: response.data.generatedAddress, error: '' });
     } catch (err) {
-      setResult({ generatedAddress: '', error: err.response?.data?.error || 'An error occurred' });
+      if (axios.isAxiosError(err)) {
+        setResult({ generatedAddress: '', error: err.response?.data?.error || 'An error occurred' });
+      } else {
+        setResult({ generatedAddress: '', error: 'An unexpected error occurred' });
+      }
     }
   };
 
