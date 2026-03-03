@@ -5,7 +5,7 @@ const App = () => {
     <div>
       <h1>Vanity Address Generator</h1>
       <VanityGenerator />
-      import TonConnectIntegration from './components/TonConnectIntegration';
+      import TonConnectIntegration from './components/TonConnectIntegration.tsx';
 
 <TonConnectIntegration />
     </div>
