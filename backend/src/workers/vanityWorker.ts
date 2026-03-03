@@ -1,7 +1,7 @@
 import { parentPort } from 'worker_threads';
 import { randomBytes } from 'crypto';
 import { KeyPair, keyPairFromSeed } from '@ton/crypto';
-import { beginCell, Cell, contractAddress, StateInit } from '@ton/core';
+import { beginCell, Cell, contractAddress, StateInit, Address } from '@ton/core';
 
 // Wallet V4R2 code (simplified - in production use actual compiled code)
 const WALLET_V4R2_CODE = Cell.fromBase64('te6cckEBBQEA5QABFP8A4K4Xw4kT/wRRBBHCHwCAzHgXPIQJcwA8Kx8Dy4IQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQPPIQJcwA8Kx8BIYJcwA8Kx8Dy4IQJcwA8Kx8B4IIJcwA8Kx8D4IQJcwA8Kx8Aw4IQJcwA8Kx8CggglyAPLH8AAgBCHwCBAQ');
@@ -74,6 +74,13 @@ function generateVanity(workerData: WorkerData): { address: string; publicKey: s
     // Calculate address (workchain 0)
     const address = contractAddress(0, stateInit);
     const addressString = address.toString({ bounceable: true, urlSafe: true });
+
+    try {
+      Address.parse(addressString);
+    } catch {
+      attempts++;
+      continue;
+    }
     
     // Check pattern
     if (checkPattern(addressString, pattern, type, caseSensitive)) {

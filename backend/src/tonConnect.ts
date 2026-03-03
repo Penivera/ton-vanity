@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { Address } from '@ton/core';
 
 const TON_CONNECT_URL = 'https://tonconnect.io';  // Replace with the actual URL
 
@@ -9,13 +10,18 @@ const TON_CONNECT_URL = 'https://tonconnect.io';  // Replace with the actual URL
  * @returns {string} TON Connect Deep Link.
  */
 export function generateTonConnectLink(appName: string, walletAddress: string): string {
+  const normalizedWallet = Address.parse(walletAddress).toString({
+    bounceable: true,
+    urlSafe: true,
+  });
+
   const sessionId = uuidv4();
 
   // Envelope the connection request
   const connectionPayload = {
     id: sessionId,
     name: appName,
-    wallet: walletAddress,
+    wallet: normalizedWallet,
   };
 
   const encodedPayload = encodeURIComponent(JSON.stringify(connectionPayload));

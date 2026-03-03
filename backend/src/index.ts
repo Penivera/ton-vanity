@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { Worker } from 'worker_threads';
+import { Worker, WorkerOptions } from 'worker_threads';
 import path from 'path';
 import { VanityRequest, GenerationProgress, VanityResult, WorkerMessage } from './types';
 
@@ -33,8 +33,19 @@ const activeJobs = new Map<string, {
 const NUM_WORKERS = 4; // Number of parallel workers
 
 function createWorker(workerData: any): Worker {
-  const workerPath = path.resolve(__dirname, './workers/vanityWorker.js');
-  return new Worker(workerPath, { workerData });
+  const isTsRuntime = __filename.endsWith('.ts');
+  const workerPath = path.resolve(
+    __dirname,
+    isTsRuntime ? './workers/vanityWorker.ts' : './workers/vanityWorker.js'
+  );
+
+  const options: WorkerOptions = { workerData };
+
+  if (isTsRuntime) {
+    options.execArgv = ['-r', 'ts-node/register'];
+  }
+
+  return new Worker(workerPath, options);
 }
 
 // Endpoint for TON Connect
@@ -44,8 +55,12 @@ app.post('/api/tonconnect', (req, res) => {
     return res.status(400).json({ error: 'Missing appName or walletAddress.' });
   }
 
-  const deepLink = generateTonConnectLink(appName, walletAddress);
-  res.status(200).json({ deepLink });
+  try {
+    const deepLink = generateTonConnectLink(appName, walletAddress);
+    res.status(200).json({ deepLink });
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid TON wallet address.' });
+  }
 });
 
 io.on('connection', (socket) => {

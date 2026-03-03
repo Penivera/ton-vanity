@@ -3,7 +3,6 @@ import { io, Socket } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import { Copy, RefreshCw, Wallet, Shield, AlertTriangle, CheckCircle2, Pause, Play } from 'lucide-react';
 import './App.css';
-import { WalletConnect } from './tonConnect';
 
 interface VanityResult {
   address: string;
@@ -89,9 +88,9 @@ function App() {
       return;
     }
 
-    // Validate pattern (hex characters only for addresses)
-    if (!/^[a-fA-F0-9]+$/.test(pattern)) {
-      setError('Pattern must contain only hex characters (0-9, A-F)');
+    // Validate pattern (base64url characters for TON addresses)
+    if (!/^[a-zA-Z0-9_-]+$/.test(pattern)) {
+      setError('Pattern must contain only letters, numbers, underscore, or hyphen');
       return;
     }
 
@@ -132,7 +131,6 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <WalletConnect />
         <Wallet size={32} className="icon" />
         <h1>TON Vanity Generator</h1>
         <p>Create custom TON wallet addresses</p>
