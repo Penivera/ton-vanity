@@ -5,7 +5,9 @@ const App = () => {
     <div>
       <h1>Vanity Address Generator</h1>
       <VanityGenerator />
-      <TonConnectIntegration />
+      import TonConnectIntegration from './components/TonConnectIntegration';
+
+<TonConnectIntegration />
     </div>
   );
 };

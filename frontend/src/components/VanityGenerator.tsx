@@ -12,7 +12,11 @@ const VanityGenerator = () => {
       setGeneratedAddress(response.data.generatedAddress);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'An error occurred');
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error || 'An error occurred');
+      } else {
+        setError('An unexpected error occurred');
+      }
     }
   };
 
