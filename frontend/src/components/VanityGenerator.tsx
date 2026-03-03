@@ -6,7 +6,7 @@ const VanityGenerator = () => {
   const [generatedAddress, setGeneratedAddress] = useState('');
   const [error, setError] = useState('');
 
-  const handleGenerate = async (e) => {
+  const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const response = await axios.post('/api/vanity-address', { prefix });
