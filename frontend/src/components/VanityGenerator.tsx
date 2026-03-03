@@ -3,49 +3,50 @@ import axios from 'axios';
 
 const VanityGenerator = () => {
   const [prefix, setPrefix] = useState('');
-  const [generatedAddress, setGeneratedAddress] = useState('');
-  const [error, setError] = useState('');
+  const [result, setResult] = useState({
+    generatedAddress: '',
+    error: ''
+  });
 
-  const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleGenerate = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.post('/api/vanity-address', { prefix });
-      setGeneratedAddress(response.data.generatedAddress);
-      setError('');
+      setResult({ generatedAddress: response.data.generatedAddress, error: '' });
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.error || 'An error occurred');
-      } else {
-        setError('An unexpected error occurred');
-      }
+      setResult({ generatedAddress: '', error: err.response?.data?.error || 'An error occurred' });
     }
   };
 
   return (
-    <div>
-      <form onSubmit={handleGenerate} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h2>Generate Your Vanity Address</h2>
-        <input
-          type="text"
-          value={prefix}
-          onChange={(e) => setPrefix(e.target.value)}
-          placeholder="Enter prefix"
-          style={{ margin: '10px 0', padding: '8px', fontSize: '1em', border: '1px solid #ccc', borderRadius: '4px', width: '100%', maxWidth: '400px' }}
-        />
-        <button
-          type="submit"
-          style={{ backgroundColor: '#007BFF', color: '#FFF', padding: '10px 20px', border: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '1em' }}
-        >
-          Generate
-        </button>
-      </form>
-      {generatedAddress && (
-        <p style={{ marginTop: '20px', color: 'green', fontSize: '1.2em' }}>Generated Address: {generatedAddress}</p>
+    <form onSubmit={handleGenerate} className="vanity-generator" style={{ textAlign: 'center', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Generate Your Vanity Address</h2>
+      <input
+        type="text"
+        value={prefix}
+        onChange={(e) => setPrefix(e.target.value)}
+        placeholder="Enter prefix"
+        style={{ padding: '10px', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ddd', width: 'calc(100% - 10px)', maxWidth: '400px', marginBottom: '1rem' }}
+      />
+      <br />
+      <button
+        type="submit"
+        style={{ padding: '10px 20px', backgroundColor: '#4C6EF5', color: '#fff', borderRadius: '4px', border: 'none', fontSize: '1rem', cursor: 'pointer' }}
+      >
+        Generate
+      </button>
+
+      {result.generatedAddress && (
+        <p style={{ marginTop: '1rem', padding: '10px', backgroundColor: '#DFF2BF', color: '#4F8A10', borderRadius: '4px' }}>
+          Generated Address: <strong>{result.generatedAddress}</strong>
+        </p>
       )}
-      {error && (
-        <p style={{ marginTop: '20px', color: 'red', fontSize: '1.2em' }}>{error}</p>
+      {result.error && (
+        <p style={{ marginTop: '1rem', padding: '10px', backgroundColor: '#FFD2D2', color: '#D8000C', borderRadius: '4px' }}>
+          Error: {result.error}
+        </p>
       )}
-    </div>
+    </form>
   );
 };
 
