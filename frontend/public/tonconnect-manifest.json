@@ -1,0 +1,7 @@
+{
+  "url": "http://localhost:5173",
+  "name": "TON Vanity Address Generator",
+  "description": "Generate personalized TON wallet addresses with custom prefixes",
+  "verificationUrl": "https://ton-vanity-generator.example.com",
+  "icons": ["https://via.placeholder.com/192x192?text=TON"]
+}

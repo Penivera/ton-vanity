@@ -20,8 +20,20 @@ export default defineConfig({
     include: ['buffer', 'crypto-browserify', 'events'],
   },
   server: {
-    port: 3000,
-    host: true
+    port: 5173,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
+      '/socket.io': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+        ws: true
+      }
+    }
   },
   build: {
     outDir: 'dist',
