@@ -22,11 +22,15 @@ app.post('/api/vanity-address', generateVanityAddress);
 
 // WebSocket connection for real-time generation
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);\n\n  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);\n  });
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
 });
 
 const PORT = process.env.PORT || 4000;
 
 httpServer.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);\n});
+  console.log(`Backend running on http://localhost:${PORT}`);
+});

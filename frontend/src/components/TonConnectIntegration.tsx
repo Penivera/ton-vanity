@@ -78,40 +78,33 @@ const TonConnectIntegration = () => {
   };
 
   return (
-    <div className="card">
-      <div className="card__header">
-        <h2>TON Wallet Connection</h2>
-        <p className="label">Connect your TON wallet to generate addresses</p>
-      </div>
-
+    <div className="wallet-connect">
       {!isConnected ? (
-        <button className="button button-primary" onClick={handleConnect}>
-          🔗 Connect Wallet
+        <button className="wallet-button" onClick={handleConnect}>
+          <span className="wallet-icon">👛</span>
+          <span className="wallet-text">Connect Wallet</span>
         </button>
       ) : (
-        <div className="card__content">
-          <div className="result-field">
-            <label>Connected Wallet</label>
-            <div className="copy-field">
-              <code className="small">{walletAddress}</code>
-              <button
-                className="icon-button"
-                onClick={copyToClipboard}
-                title="Copy address"
-              >
-                {copied ? (
-                  <Check size={16} style={{ color: 'var(--success)' }} />
-                ) : (
-                  <Copy size={16} />
-                )}
-              </button>
-            </div>
+        <div className="wallet-connected">
+          <div className="wallet-address" title={walletAddress}>
+            <span className="wallet-icon-small">✓</span>
+            <code className="address-short">
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </code>
+            <button
+              className="wallet-copy-btn"
+              onClick={copyToClipboard}
+              title="Copy address"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
           </div>
           <button
-            className="button button-secondary"
+            className="wallet-disconnect"
             onClick={handleDisconnect}
+            title="Disconnect wallet"
           >
-            Disconnect Wallet
+            Disconnect
           </button>
         </div>
       )}

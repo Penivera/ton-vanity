@@ -27,15 +27,20 @@ body {
 }
 
 .app {
-  max-width: 480px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
   min-height: 100vh;
 }
 
 .header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 30px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 40px;
+  gap: 20px;
 }
 
 .header__content {
@@ -44,11 +49,18 @@ body {
   gap: 8px;
 }
 
+.header__wallet {
+  flex-shrink: 0;
+}
+
 .header h1 {
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 700;
   margin: 0;
-  color: var(--accent-light);
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .header p {
@@ -60,17 +72,190 @@ body {
 .main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.layout-horizontal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Wallet Connect Styles */
+.wallet-connect {
+  position: relative;
+}
+
+.wallet-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 136, 204, 0.3);
+  white-space: nowrap;
+}
+
+.wallet-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 136, 204, 0.45);
+}
+
+.wallet-icon {
+  font-size: 16px;
+}
+
+.wallet-icon-small {
+  color: var(--success);
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.wallet-text {
+  display: inline;
+}
+
+.wallet-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.wallet-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 2px solid var(--success);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.wallet-address:hover {
+  border-color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+.address-short {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.wallet-copy-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.wallet-copy-btn:hover {
+  color: var(--accent);
+  background: rgba(0, 136, 204, 0.1);
+}
+
+.wallet-disconnect {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.wallet-disconnect:hover {
+  border-color: var(--error);
+  color: var(--error);
+  background: rgba(255, 71, 87, 0.1);
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .header__wallet {
+    width: 100%;
+  }
+  
+  .wallet-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .wallet-connected {
+    width: 100%;
+    align-items: stretch;
+  }
+  
+  .wallet-address {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 12px;
+  }
+  
+  .header {
+    padding: 20px 0 30px 0;
+  }
+  
+  .header h1 {
+    font-size: 28px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+  
+  .wallet-text {
+    display: none;
+  }
+  
+  .wallet-button {
+    padding: 10px 14px;
+  }
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: 20px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: fit-content;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 136, 204, 0.15);
 }
 
 .card__header {
@@ -80,10 +265,13 @@ body {
 }
 
 .card__header h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .card__header p {
@@ -116,24 +304,26 @@ body {
 
 .input {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
   font-size: 18px;
   color: var(--text-primary);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: all 0.2s;
+  letter-spacing: 1.5px;
+  transition: all 0.3s ease;
+  font-weight: 600;
 }
 
 .input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.1);
+  box-shadow: 0 0 0 4px rgba(0, 136, 204, 0.12);
+  background: var(--bg-card);
 }
 
 .input:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -184,45 +374,69 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 16px 24px;
-  border-radius: 12px;
+  gap: 10px;
+  padding: 18px 28px;
+  border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
   border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
 }
 
 .button-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: white;
+  box-shadow: 0 4px 15px rgba(0, 136, 204, 0.3);
 }
 
-.button-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(0, 136, 204, 0.4);
+.button-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 136, 204, 0.45);
+}
+
+.button-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .button-secondary {
   background: var(--error);
   color: white;
+  box-shadow: 0 4px 15px rgba(255, 71, 87, 0.3);
 }
 
-.button-secondary:hover {
+.button-secondary:hover:not(:disabled) {
   background: #ff3344;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(255, 71, 87, 0.45);
 }
 
 .error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(255, 71, 87, 0.1);
-  border: 1px solid var(--error);
-  border-radius: 10px;
+  gap: 10px;
+  padding: 16px 18px;
+  background: rgba(255, 71, 87, 0.12);
+  border: 2px solid var(--error);
+  border-radius: 12px;
   color: var(--error);
   font-size: 14px;
+  font-weight: 500;
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 .progress-card {
@@ -274,6 +488,22 @@ body {
 
 .result-card {
   text-align: center;
+  background: linear-gradient(135deg, rgba(0, 208, 132, 0.05), rgba(0, 136, 204, 0.05));
+  border: 2px solid var(--success);
+  border-radius: 16px;
+  padding: 24px;
+  animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .result-header {
@@ -285,8 +515,12 @@ body {
 }
 
 .result-header h2 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
+  background: linear-gradient(135deg, var(--success), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .success-icon {
@@ -308,22 +542,29 @@ body {
 .result-field label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
 .copy-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: all 0.3s ease;
+}
+
+.copy-field:hover {
+  border-color: var(--accent);
+  background: var(--bg-card);
 }
 
 .copy-field code {
@@ -344,21 +585,28 @@ body {
 
 .icon-button {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .icon-button:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
+  transform: scale(1.05);
+}
+
+.icon-button:active {
+  transform: scale(0.98);
 }
 
 .private-key-field {

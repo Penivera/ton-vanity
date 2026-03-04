@@ -1,40 +1,25 @@
 import type { Request, Response } from 'express';
-import { Address } from '@ton/core';
-import { sha256 } from '@ton/crypto';
 import crypto from 'crypto';
 
 /**
- * Generate a random seed and create a TON address
+ * Generate a simple vanity address
+ * Format: EQ + base64url-like string
  */
 function generateRandomAddress(): string {
   const randomBytes = crypto.randomBytes(32);
-  const hash = sha256(randomBytes);
-  // Format: workchain:address (0 = basechain)
-  const hashHex = Buffer.isBuffer(hash) ? hash.toString('hex') : hash;
-  return `0:${hashHex}`;
-}
-
-/**
- * Convert address to friendly format (bounceable)
- */
-function toFriendlyAddress(rawAddress: string): string {
-  try {
-    const address = Address.parseRaw(rawAddress);
-    return address.toString({
-      bounceable: true,
-      urlSafe: true,
-    });
-  } catch (e) {
-    return rawAddress;
-  }
+  const base64 = randomBytes.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  return `EQ${base64}`;
 }
 
 /**
  * Check if address matches the prefix (case-insensitive)
  */
 function matchesPrefix(address: string, prefix: string): boolean {
-  const normalizedAddress = address.toUpperCase().replace('-', '');
-  const normalizedPrefix = prefix.toUpperCase().replace('-', '');
+  const normalizedAddress = address.toUpperCase();
+  const normalizedPrefix = prefix.toUpperCase();
   return normalizedAddress.includes(normalizedPrefix);
 }
 
@@ -75,21 +60,18 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
 
   try {
     let address: string;
-    let friendlyAddress: string;
     let attempts = 0;
     const maxAttempts = 1000000; // Prevent infinite loops
 
     // Generate addresses until we find one matching the prefix
     do {
       address = generateRandomAddress();
-      friendlyAddress = toFriendlyAddress(address);
       attempts++;
 
-      if (matchesPrefix(friendlyAddress, cleanPrefix)) {
+      if (matchesPrefix(address, cleanPrefix)) {
         return res.json({
           success: true,
-          address: friendlyAddress,
-          rawAddress: address,
+          address: address,
           prefix: cleanPrefix,
           attempts,
         });

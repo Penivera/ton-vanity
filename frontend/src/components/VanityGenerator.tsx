@@ -82,8 +82,8 @@ const VanityGenerator = () => {
   return (
     <div className="card">
       <div className="card__header">
-        <h2>Generate Vanity Address</h2>
-        <p className="label">Find a TON address that matches your desired prefix</p>
+        <h2>⚡ Generate Address</h2>
+        <p className="label">Find an address matching your desired prefix</p>
       </div>
 
       <form onSubmit={handleGenerate} className="card__form">

@@ -12,8 +12,8 @@
   "dependencies": {
     "@telegram-apps/sdk-react": "^3.3.9",
     "@ton/walletkit": "^0.0.8",
-    "@ton/core": "^0.60.3",
-    "@ton/crypto": "^4.4.1",
+    "@ton/core": "^0.63.0",
+    "@ton/crypto": "^3.3.0",
     "@tonconnect/ui-react": "^2.4.1",
     "axios": "^1.13.6",
     "buffer": "^6.0.3",
