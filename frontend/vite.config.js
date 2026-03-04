@@ -1,1 +1,29 @@
-import { defineConfig } from 'vite'; export default defineConfig({ server: { allowedHosts: [ process.env.TUNNEL_HOST ], }, });
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [react()],
+	define: {
+		global: 'globalThis',
+	},
+	server: {
+		port: 5173,
+		host: true,
+		allowedHosts: process.env.TUNNEL_HOST ? [process.env.TUNNEL_HOST] : true,
+		proxy: {
+			'/api': {
+				target: 'http://localhost:4000',
+				changeOrigin: true,
+			},
+			'/socket.io': {
+				target: 'http://localhost:4000',
+				changeOrigin: true,
+				ws: true,
+			},
+		},
+	},
+	build: {
+		outDir: 'dist',
+		sourcemap: true,
+	},
+})

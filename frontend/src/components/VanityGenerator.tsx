@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Zap, Copy, Check, AlertCircle } from 'lucide-react';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
 const VanityGenerator = () => {
   const [prefix, setPrefix] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -37,11 +39,17 @@ const VanityGenerator = () => {
     abortControllerRef.current = new AbortController();
 
     try {
+      console.log('Making request to /api/vanity-address with prefix:', prefix);
       const response = await axios.post(
-        '/api/vanity-address',
+        `${API_BASE_URL}/api/vanity-address`,
         { prefix },
-        { signal: abortControllerRef.current.signal }
+        { 
+          signal: abortControllerRef.current.signal,
+          timeout: 30000 // 30 second timeout
+        }
       );
+
+      console.log('Response received:', response.data);
 
       if (response.data.success) {
         setGeneratedAddress(response.data.address);
@@ -50,13 +58,19 @@ const VanityGenerator = () => {
         setError(response.data.error || 'Failed to generate address');
       }
     } catch (err) {
+      console.error('Error during generation:', err);
       if (axios.isAxiosError(err)) {
         if (err.code !== 'ECONNABORTED') {
-          setError(
-            err.response?.data?.error ||
-            err.message ||
-            'Failed to generate address'
-          );
+          const errorMessage = err.response?.data?.error || 
+                              err.message || 
+                              `Request failed: ${err.response?.status || 'Network Error'}`;
+          setError(errorMessage);
+          console.error('Axios error details:', {
+            status: err.response?.status,
+            statusText: err.response?.statusText,
+            data: err.response?.data,
+            message: err.message
+          });
         }
       } else {
         setError('An unexpected error occurred');

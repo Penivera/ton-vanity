@@ -6,19 +6,6 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
-  resolve: {
-    alias: {
-      buffer: 'buffer',
-      crypto: 'crypto-browserify',
-      stream: 'stream-browserify',
-      util: 'util',
-      path: 'path-browserify',
-      events: 'events',
-    }
-  },
-  optimizeDeps: {
-    include: ['buffer', 'crypto-browserify', 'events'],
-  },
   server: {
     port: 5173,
     host: true,
