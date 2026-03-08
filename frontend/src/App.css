@@ -355,6 +355,46 @@ body {
   cursor: not-allowed;
 }
 
+.difficulty-hint {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.difficulty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+.difficulty-easy {
+  color: var(--success);
+  border-color: var(--success);
+  background: rgba(0, 208, 132, 0.1);
+}
+
+.difficulty-medium {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: rgba(255, 165, 0, 0.1);
+}
+
+.difficulty-hard {
+  color: var(--error);
+  border-color: var(--error);
+  background: rgba(255, 71, 87, 0.1);
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;

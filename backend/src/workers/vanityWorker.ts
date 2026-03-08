@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
 
+type MatchType = 'prefix' | 'suffix' | 'contains';
+
 /**
  * Generate a simple vanity address
  * Format: EQ + base64url-like string
@@ -15,16 +17,25 @@ function generateRandomAddress(): string {
 }
 
 /**
- * Check if address matches the prefix (case-insensitive)
+ * Check if address matches selected placement (case-insensitive)
  */
-function matchesPrefix(address: string, prefix: string): boolean {
+function matchesPattern(address: string, prefix: string, matchType: MatchType): boolean {
   const normalizedAddress = address.toUpperCase();
   const normalizedPrefix = prefix.toUpperCase();
+
+  if (matchType === 'prefix') {
+    return normalizedAddress.startsWith(normalizedPrefix);
+  }
+
+  if (matchType === 'suffix') {
+    return normalizedAddress.endsWith(normalizedPrefix);
+  }
+
   return normalizedAddress.includes(normalizedPrefix);
 }
 
 export const generateVanityAddress = async (req: Request, res: Response) => {
-  const { prefix } = req.body;
+  const { prefix, matchType = 'prefix' } = req.body;
 
   // Validation
   if (!prefix || typeof prefix !== 'string') {
@@ -58,6 +69,15 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
     });
   }
 
+  if (!['prefix', 'suffix', 'contains'].includes(matchType)) {
+    return res.status(400).json({
+      success: false,
+      error: 'matchType must be one of: prefix, suffix, contains',
+    });
+  }
+
+  const normalizedMatchType = matchType as MatchType;
+
   try {
     let address: string;
     let attempts = 0;
@@ -68,11 +88,12 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
       address = generateRandomAddress();
       attempts++;
 
-      if (matchesPrefix(address, cleanPrefix)) {
+      if (matchesPattern(address, cleanPrefix, normalizedMatchType)) {
         return res.json({
           success: true,
           address: address,
           prefix: cleanPrefix,
+          matchType: normalizedMatchType,
           attempts,
         });
       }

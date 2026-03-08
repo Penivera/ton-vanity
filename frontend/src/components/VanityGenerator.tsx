@@ -3,14 +3,38 @@ import axios from 'axios';
 import { Zap, Copy, Check, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+type MatchType = 'prefix' | 'suffix' | 'contains';
+
+const getDifficulty = (text: string, matchType: MatchType): { level: 'Easy' | 'Medium' | 'Hard'; note: string } => {
+  const length = text.trim().length;
+
+  if (length <= 2) {
+    return { level: 'Easy', note: `${matchType} with short text is usually quick` };
+  }
+
+  if (length <= 4) {
+    if (matchType === 'contains') {
+      return { level: 'Easy', note: 'contains is usually faster than strict start/end matching' };
+    }
+    return { level: 'Medium', note: `${matchType} may take from seconds to minutes` };
+  }
+
+  if (length <= 6) {
+    return { level: 'Hard', note: 'longer patterns can take significantly more attempts' };
+  }
+
+  return { level: 'Hard', note: 'very long patterns may take a long time to find' };
+};
 
 const VanityGenerator = () => {
   const [prefix, setPrefix] = useState('');
+  const [matchType, setMatchType] = useState<MatchType>('prefix');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAddress, setGeneratedAddress] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const difficulty = getDifficulty(prefix, matchType);
 
   useEffect(() => {
     return () => {
@@ -26,7 +50,7 @@ const VanityGenerator = () => {
     setGeneratedAddress('');
 
     if (!prefix.trim()) {
-      setError('Please enter a prefix');
+      setError('Please enter text to match');
       return;
     }
 
@@ -39,17 +63,14 @@ const VanityGenerator = () => {
     abortControllerRef.current = new AbortController();
 
     try {
-      console.log('Making request to /api/vanity-address with prefix:', prefix);
       const response = await axios.post(
         `${API_BASE_URL}/api/vanity-address`,
-        { prefix },
+        { prefix, matchType },
         { 
           signal: abortControllerRef.current.signal,
           timeout: 30000 // 30 second timeout
         }
       );
-
-      console.log('Response received:', response.data);
 
       if (response.data.success) {
         setGeneratedAddress(response.data.address);
@@ -58,19 +79,12 @@ const VanityGenerator = () => {
         setError(response.data.error || 'Failed to generate address');
       }
     } catch (err) {
-      console.error('Error during generation:', err);
       if (axios.isAxiosError(err)) {
         if (err.code !== 'ECONNABORTED') {
           const errorMessage = err.response?.data?.error || 
                               err.message || 
                               `Request failed: ${err.response?.status || 'Network Error'}`;
           setError(errorMessage);
-          console.error('Axios error details:', {
-            status: err.response?.status,
-            statusText: err.response?.statusText,
-            data: err.response?.data,
-            message: err.message
-          });
         }
       } else {
         setError('An unexpected error occurred');
@@ -97,12 +111,46 @@ const VanityGenerator = () => {
     <div className="card">
       <div className="card__header">
         <h2>⚡ Generate Address</h2>
-        <p className="label">Find an address matching your desired prefix</p>
+        <p className="label">Choose where your text should appear in the address</p>
       </div>
 
       <form onSubmit={handleGenerate} className="card__form">
         <div>
-          <label className="label">Address Prefix</label>
+          <label className="label">Placement</label>
+          <div className="button-group">
+            <button
+              type="button"
+              className={`button-group-item ${matchType === 'prefix' ? 'active' : ''}`}
+              onClick={() => setMatchType('prefix')}
+              disabled={isGenerating}
+            >
+              Prefix
+            </button>
+            <button
+              type="button"
+              className={`button-group-item ${matchType === 'suffix' ? 'active' : ''}`}
+              onClick={() => setMatchType('suffix')}
+              disabled={isGenerating}
+            >
+              Suffix
+            </button>
+            <button
+              type="button"
+              className={`button-group-item ${matchType === 'contains' ? 'active' : ''}`}
+              onClick={() => setMatchType('contains')}
+              disabled={isGenerating}
+            >
+              Contains
+            </button>
+          </div>
+          <div className="difficulty-hint" role="status" aria-live="polite">
+            <span className={`difficulty-badge difficulty-${difficulty.level.toLowerCase()}`}>{difficulty.level}</span>
+            <span>{difficulty.note}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Text to Match</label>
           <input
             type="text"
             value={prefix}
