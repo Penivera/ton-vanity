@@ -1,77 +1,29 @@
-import { useEffect, useState } from 'react';
-import { TonConnectUI, TonConnectUIError } from '@tonconnect/ui-react';
+import { useState } from 'react';
+import { useTonConnectUI, useTonWallet, useTonAddress } from '@tonconnect/ui-react';
 import { Copy, Check } from 'lucide-react';
 
 const TonConnectIntegration = () => {
-  const [tonConnectUI, setTonConnectUI] = useState<TonConnectUI | null>(null);
-  const [walletAddress, setWalletAddress] = useState('');
-  const [walletName, setWalletName] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+  const [tonConnectUI] = useTonConnectUI();
+  const walletAddress = useTonAddress();
+  const wallet = useTonWallet();
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const initializeTonConnect = async () => {
-      try {
-        const ui = new TonConnectUI({
-          manifestUrl: `${window.location.origin}/tonconnect-manifest.json`,
-        });
-        setTonConnectUI(ui);
-
-        // Check if wallet is already connected
-        if (ui.account) {
-          setWalletAddress(ui.account.address);
-          setWalletName(ui.account.name || 'Connected Wallet');
-          setIsConnected(true);
-        }
-
-        // Subscribe to account changes
-        ui.onAccountChange((account) => {
-          if (account) {
-            setWalletAddress(account.address);
-            setWalletName(account.name || 'Connected Wallet');
-            setIsConnected(true);
-          } else {
-            setWalletAddress('');
-            setWalletName('');
-            setIsConnected(false);
-          }
-        });
-
-        // Subscribe to status changes
-        ui.onStatusChange((account) => {
-          if (!account) {
-            setIsConnected(false);
-          }
-        });
-      } catch (error) {
-        if (error instanceof TonConnectUIError) {
-          console.error('TonConnectUI error:', error);
-        }
-      }
-    };
-
-    initializeTonConnect();
-  }, []);
+  const isConnected = !!wallet;
 
   const handleConnect = async () => {
-    if (!tonConnectUI) return;
-
     try {
-      await tonConnectUI.openSingleModal();
+      await tonConnectUI.openModal();
     } catch (error) {
       console.error('Connection error:', error);
     }
   };
 
   const handleDisconnect = async () => {
-    if (!tonConnectUI) return;
     await tonConnectUI.disconnect();
-    setWalletAddress('');
-    setWalletName('');
-    setIsConnected(false);
   };
 
   const copyToClipboard = async () => {
+    if (!walletAddress) return;
     await navigator.clipboard.writeText(walletAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
