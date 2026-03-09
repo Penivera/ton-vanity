@@ -7,7 +7,7 @@ import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <TonConnectUIProvider manifestUrl={`${window.location.origin}/tonconnect-manifest.json`}>
+    <TonConnectUIProvider manifestUrl="https://raw.githubusercontent.com/Penivera/ton-vanity/main/tonconnect-manifest.json">
       <App />
     </TonConnectUIProvider>
   </React.StrictMode>,
