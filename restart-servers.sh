@@ -17,7 +17,7 @@ BACKEND_PID=$!
 sleep 3
 
 echo "🚀 Starting frontend..."
-cd ../frontend && npm run dev &
+cd frontend && npm run dev &
 FRONTEND_PID=$!
 
 echo ""

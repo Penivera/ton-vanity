@@ -1,7 +1,7 @@
-// Realistic type definitions for polyfills
-interface PolyfillMap {
-  [key: string]: string;
-}
-const polyfills: PolyfillMap = {};
+import { Buffer } from 'buffer';
 
-export default polyfills;
+if (typeof window !== 'undefined') {
+  window.Buffer = window.Buffer || Buffer;
+  (window as any).global = window;
+  (window as any).process = { env: {} };
+}
