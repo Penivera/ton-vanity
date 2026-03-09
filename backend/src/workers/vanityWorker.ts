@@ -1,30 +1,23 @@
 import type { Request, Response } from 'express';
-import crypto from 'crypto';
+import { Address, beginCell, Cell, StateInit, contractAddress } from '@ton/core';
+// Using the local IO server emitting
+import { getIO } from '../index'; // We will export the io instance in index.ts
 
 type MatchType = 'prefix' | 'suffix' | 'contains';
 
-/**
- * Generate a simple vanity address
- * Format: EQ + base64url-like string
- */
-function generateRandomAddress(): string {
-  const randomBytes = crypto.randomBytes(32);
-  const base64 = randomBytes.toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-  return `EQ${base64}`;
-}
+const PROXY_CODE_BOC = 'te6cckEBAgEAQAABFP8A9KQT9LzyyAsBAGLTMwGCCJiWgLmRW+DQ0wMwcbCRMODtRND6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsA9B+UgA==';
 
-/**
- * Check if address matches selected placement (case-insensitive)
- */
-function matchesPattern(address: string, prefix: string, matchType: MatchType): boolean {
-  const normalizedAddress = address.toUpperCase();
+function matchesPattern(addressString: string, prefix: string, matchType: MatchType): boolean {
+  const normalizedAddress = addressString.toUpperCase();
   const normalizedPrefix = prefix.toUpperCase();
 
   if (matchType === 'prefix') {
-    return normalizedAddress.startsWith(normalizedPrefix);
+    // TON addresses typically start with EQ or UQ. We check after the first 2 chars.
+    // Or we simply check the whole 48 character encoded string.
+    // e.g. EQxyz... => length 48
+    // We'll just check the base64 part, skipping the first 2 characters 'EQ'/'UQ'
+    const base64Part = normalizedAddress.substring(2);
+    if (matchType === 'prefix') return base64Part.startsWith(normalizedPrefix);
   }
 
   if (matchType === 'suffix') {
@@ -35,83 +28,119 @@ function matchesPattern(address: string, prefix: string, matchType: MatchType): 
 }
 
 export const generateVanityAddress = async (req: Request, res: Response) => {
-  const { prefix, matchType = 'prefix' } = req.body;
+  const { prefix, matchType = 'prefix', targetAddress, socketId } = req.body;
 
   // Validation
   if (!prefix || typeof prefix !== 'string') {
-    return res.status(400).json({ 
-      success: false,
-      error: 'Prefix is required and must be a string' 
-    });
+    return res.status(400).json({ success: false, error: 'Prefix is required and must be a string' });
+  }
+
+  if (!targetAddress || typeof targetAddress !== 'string') {
+    return res.status(400).json({ success: false, error: 'Target Address is required' });
+  }
+
+  let parsedTargetAddress: Address;
+  try {
+    parsedTargetAddress = Address.parse(targetAddress);
+  } catch (e) {
+    return res.status(400).json({ success: false, error: 'Invalid Target Address format' });
   }
 
   const cleanPrefix = prefix.trim().toUpperCase();
 
-  if (cleanPrefix.length === 0) {
-    return res.status(400).json({ 
-      success: false,
-      error: 'Prefix cannot be empty' 
-    });
-  }
-
-  if (cleanPrefix.length > 10) {
-    return res.status(400).json({ 
-      success: false,
-      error: 'Prefix must be 10 characters or less' 
-    });
-  }
-
-  // Only allow alphanumeric characters
-  if (!/^[A-Z0-9]+$/.test(cleanPrefix)) {
-    return res.status(400).json({ 
-      success: false,
-      error: 'Prefix must contain only alphanumeric characters' 
-    });
-  }
-
-  if (!['prefix', 'suffix', 'contains'].includes(matchType)) {
-    return res.status(400).json({
-      success: false,
-      error: 'matchType must be one of: prefix, suffix, contains',
-    });
-  }
+  if (cleanPrefix.length === 0) return res.status(400).json({ success: false, error: 'Prefix cannot be empty' });
+  if (cleanPrefix.length > 10) return res.status(400).json({ success: false, error: 'Prefix must be 10 characters or less' });
+  if (!/^[A-Z0-9]+$/.test(cleanPrefix)) return res.status(400).json({ success: false, error: 'Prefix must contain only alphanumeric characters' });
+  if (!['prefix', 'suffix', 'contains'].includes(matchType)) return res.status(400).json({ success: false, error: 'matchType must be one of: prefix, suffix, contains' });
 
   const normalizedMatchType = matchType as MatchType;
 
-  try {
-    let address: string;
-    let attempts = 0;
-    const maxAttempts = 1000000; // Prevent infinite loops
+  // Prepare Proxy Code Cell
+  const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
 
-    // Generate addresses until we find one matching the prefix
-    do {
-      address = generateRandomAddress();
+  let attempts = 0;
+  let salt = BigInt(Math.floor(Math.random() * 1000000000)); // Start with a random salt
+
+  const startTime = Date.now();
+  const TIMEOUT_MS = 24000; // 24 seconds (Vercel standard timeout is 30s)
+  let backgroundMode = false;
+
+  const searchLoop = () => {
+    // We break the event loop periodically so Node isn't completely blocked
+    // 1000 is small enough to ensure the event loop ticks fast enough to catch timeout and HTTP responses
+    const batchSize = 1000;
+    let batchAttempts = 0;
+
+    while (batchAttempts < batchSize) {
+      salt++;
       attempts++;
 
-      if (matchesPattern(address, cleanPrefix, normalizedMatchType)) {
-        return res.json({
-          success: true,
-          address: address,
-          prefix: cleanPrefix,
-          matchType: normalizedMatchType,
-          attempts,
-        });
+      // Build Proxy Data Cell:
+      // ds~load_msg_addr() -> target_address
+      // ds~load_uint(64) -> salt
+      const proxyDataCell = beginCell()
+        .storeAddress(parsedTargetAddress)
+        .storeUint(salt, 64)
+        .endCell();
+
+      // Calculate state init address
+      // Workchain 0
+      const address = contractAddress(0, {
+        code: proxyCodeCell,
+        data: proxyDataCell
+      });
+
+      // Convert to user-friendly bounceable format
+      const addressString = address.toString({ bounceable: true, testOnly: false });
+
+      if (matchesPattern(addressString, cleanPrefix, normalizedMatchType)) {
+        if (!backgroundMode) {
+          // Send HTTP response directly
+          return res.json({
+            success: true,
+            address: addressString,
+            prefix: cleanPrefix,
+            matchType: normalizedMatchType,
+            attempts,
+            salt: salt.toString(),
+            targetAddress
+          });
+        } else {
+          // Already sent HTTP response, pushing result to socket
+          const io = getIO();
+          if (io && socketId) {
+            io.to(socketId).emit('vanityFound', {
+              success: true,
+              address: addressString,
+              prefix: cleanPrefix,
+              matchType: normalizedMatchType,
+              attempts,
+              salt: salt.toString(),
+              targetAddress
+            });
+          }
+          return;
+        }
       }
 
-      // Check every 1000 attempts if needed
-      if (attempts >= maxAttempts) {
-        console.warn(`Max attempts (${maxAttempts}) reached for prefix: ${cleanPrefix}`);
-        return res.status(500).json({
-          success: false,
-          error: 'Could not generate matching address within reasonable time. Try a shorter prefix.',
-        });
-      }
-    } while (true);
-  } catch (error) {
-    console.error('Error generating vanity address:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error while generating address',
-    });
-  }
+      batchAttempts++;
+    }
+
+    // Check time limit
+    if (!backgroundMode && Date.now() - startTime > TIMEOUT_MS) {
+      backgroundMode = true;
+      res.json({
+        success: true,
+        status: 'processing',
+        message: 'Generation taking longer than expected. Continuing in background...',
+      });
+      // We purposefully do NOT return here, instead we schedule the next tick
+    }
+
+    // Yield solidly to the event loop so HTTP and Sockets can process
+    setTimeout(searchLoop, 0);
+  };
+
+  // Start the background loop
+  searchLoop();
 };
