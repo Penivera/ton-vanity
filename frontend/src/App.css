@@ -473,6 +473,101 @@ body {
   animation: shake 0.4s ease-in-out;
 }
 
+.deploy-toast {
+  background: linear-gradient(135deg, rgba(0, 208, 132, 0.18), rgba(0, 136, 204, 0.18));
+  border: 1px solid rgba(0, 208, 132, 0.55);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  animation: deployToastIn 0.24s ease-out;
+}
+
+.deploy-toast__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.deploy-toast__title {
+  color: #d5ffe8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.deploy-toast__subtitle {
+  color: #c5d7eb;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.deploy-toast__close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--text-primary);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.deploy-toast__close:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deploy-toast__address {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+  background: rgba(4, 16, 28, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 10px;
+  border-radius: 10px;
+  word-break: break-all;
+  color: #e8f4ff;
+}
+
+.deploy-toast__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.deploy-toast__btn {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(12, 22, 34, 0.4);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.deploy-toast__btn:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes deployToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-5px); }
@@ -701,6 +796,10 @@ body {
 @media (max-width: 480px) {
   .app {
     padding: 12px;
+  }
+
+  .deploy-toast__actions {
+    flex-direction: column;
   }
   
   .header {

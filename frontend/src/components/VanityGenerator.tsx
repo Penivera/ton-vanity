@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Zap, Copy, Check, AlertCircle, Rocket } from 'lucide-react';
+import { Zap, Copy, Check, AlertCircle, Rocket, ExternalLink, X } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { CHAIN } from '@tonconnect/sdk';
 import { useTonConnectUI, useTonAddress, useTonWallet } from '@tonconnect/ui-react';
@@ -61,6 +61,7 @@ const VanityGenerator = () => {
   const [generatedNetwork, setGeneratedNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [deployToast, setDeployToast] = useState<{ address: string; network: 'mainnet' | 'testnet' } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -72,6 +73,16 @@ const VanityGenerator = () => {
   const walletIsTestnet = wallet?.account.chain === CHAIN.TESTNET;
   const isGeneratedTestnet = generatedNetwork === 'testnet';
   const displayGeneratedAddress = generatedAddress ? formatAddressForNetwork(generatedAddress, isGeneratedTestnet) : '';
+
+  useEffect(() => {
+    if (!deployToast) return;
+
+    const timer = window.setTimeout(() => {
+      setDeployToast(null);
+    }, 9000);
+
+    return () => window.clearTimeout(timer);
+  }, [deployToast]);
 
   useEffect(() => {
     // Initialize socket
@@ -230,11 +241,25 @@ const VanityGenerator = () => {
       };
 
       await tonConnectUI.sendTransaction(transaction);
-      alert('Transaction sent! The proxy contract will be deployed shortly.');
+      setDeployToast({
+        address: deploymentAddress,
+        network: generatedNetwork,
+      });
     } catch (err: any) {
       console.error('Deployment error', err);
       setError(`Deployment failed: ${err.message || 'Unknown error'}`);
     }
+  };
+
+  const handleCopyDeployAddress = async () => {
+    if (!deployToast) return;
+    await navigator.clipboard.writeText(deployToast.address);
+  };
+
+  const handleOpenExplorer = () => {
+    if (!deployToast) return;
+    const base = deployToast.network === 'testnet' ? 'https://testnet.tonviewer.com/' : 'https://tonviewer.com/';
+    window.open(`${base}${deployToast.address}`, '_blank', 'noopener,noreferrer');
   };
 
   const copyToClipboard = async () => {
@@ -251,6 +276,39 @@ const VanityGenerator = () => {
 
   return (
     <div className="card">
+      {deployToast && (
+        <div className="deploy-toast" role="status" aria-live="polite">
+          <div className="deploy-toast__main">
+            <div>
+              <p className="deploy-toast__title">Deployment submitted</p>
+              <p className="deploy-toast__subtitle">
+                Signed successfully on {deployToast.network}. Contract should appear shortly.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="deploy-toast__close"
+              onClick={() => setDeployToast(null)}
+              aria-label="Dismiss notification"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="deploy-toast__address">{deployToast.address}</div>
+
+          <div className="deploy-toast__actions">
+            <button type="button" className="deploy-toast__btn" onClick={handleCopyDeployAddress}>
+              <Copy size={14} /> Copy address
+            </button>
+            <button type="button" className="deploy-toast__btn" onClick={handleOpenExplorer}>
+              <ExternalLink size={14} /> Open Tonviewer
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="card__header">
         <h2>⚡ Generate Proxy Address</h2>
         <p className="label">Generate a vanity address that forwards to your contract</p>
