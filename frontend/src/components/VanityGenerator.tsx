@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Zap, Copy, Check, AlertCircle, Rocket } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
-import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
-import { beginCell, Cell, storeStateInit } from '@ton/core';
+import { CHAIN } from '@tonconnect/sdk';
+import { useTonConnectUI, useTonAddress, useTonWallet } from '@tonconnect/ui-react';
+import { Address, beginCell, Cell, contractAddress, storeStateInit } from '@ton/core';
 import type { StateInit } from '@ton/core';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -17,6 +18,18 @@ const getDifficulty = (text: string, matchType: MatchType): { level: 'Easy' | 'M
   if (length <= 4) return matchType === 'contains' ? { level: 'Easy', note: 'contains is usually faster' } : { level: 'Medium', note: `${matchType} may take from seconds to minutes` };
   if (length <= 6) return { level: 'Hard', note: 'longer patterns can take significantly more attempts' };
   return { level: 'Hard', note: 'very long patterns may take a long time to find' };
+};
+
+const formatAddressForNetwork = (address: string, isTestnet: boolean): string => {
+  try {
+    return Address.parse(address).toString({
+      bounceable: true,
+      testOnly: isTestnet,
+      urlSafe: true,
+    });
+  } catch {
+    return address;
+  }
 };
 
 const VanityGenerator = () => {
@@ -37,6 +50,9 @@ const VanityGenerator = () => {
 
   const [tonConnectUI] = useTonConnectUI();
   const userAddress = useTonAddress();
+  const wallet = useTonWallet();
+  const isTestnet = wallet?.account.chain === CHAIN.TESTNET;
+  const displayGeneratedAddress = generatedAddress ? formatAddressForNetwork(generatedAddress, isTestnet) : '';
 
   useEffect(() => {
     // Initialize socket
@@ -132,10 +148,13 @@ const VanityGenerator = () => {
       return;
     }
 
+    if (!generatedAddress || !generatedSalt) {
+      setError('Generate a vanity address first');
+      return;
+    }
+
     try {
       const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
-
-      const { Address } = await import('@ton/core');
       const targetAddr = Address.parse(targetAddress);
 
       const proxyDataCell = beginCell()
@@ -152,14 +171,28 @@ const VanityGenerator = () => {
         .store(storeStateInit(stateInit))
         .endCell();
 
+      const derivedAddress = contractAddress(0, stateInit);
+      const derivedRawAddress = derivedAddress.toRawString();
+      const generatedRawAddress = Address.parse(generatedAddress).toRawString();
+
+      if (derivedRawAddress !== generatedRawAddress) {
+        throw new Error('Derived deployment address does not match the generated vanity address');
+      }
+
       const stateInitBoc = stateInitCell.toBoc().toString('base64');
+      const deploymentAddress = derivedAddress.toString({
+        bounceable: true,
+        testOnly: isTestnet,
+        urlSafe: true,
+      });
 
       // Deploy takes ~0.05 TON for storage and gas
       const transaction = {
         validUntil: Math.floor(Date.now() / 1000) + 360,
+        network: wallet?.account.chain,
         messages: [
           {
-            address: generatedAddress,
+            address: deploymentAddress,
             amount: '50000000', // 0.05 TON
             stateInit: stateInitBoc,
           }
@@ -175,7 +208,7 @@ const VanityGenerator = () => {
   };
 
   const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(generatedAddress);
+    await navigator.clipboard.writeText(displayGeneratedAddress || generatedAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -300,11 +333,15 @@ const VanityGenerator = () => {
           <div className="result-field">
             <label>Vanity Address</label>
             <div className="copy-field">
-              <code className="small">{generatedAddress}</code>
+              <code className="small">{displayGeneratedAddress}</code>
               <button type="button" className="icon-button" onClick={copyToClipboard} title="Copy address">
                 {copied ? <Check size={16} style={{ color: 'var(--success)' }} /> : <Copy size={16} />}
               </button>
             </div>
+
+            <p className="label" style={{ marginTop: '8px', fontSize: '12px' }}>
+              Displaying the {isTestnet ? 'testnet' : 'mainnet'} user-friendly format. The raw contract address stays the same across networks.
+            </p>
 
             <p className="label" style={{ marginTop: '12px', marginBottom: '12px' }}>
               To use this address, you must deploy the proxy smart-contract first so it can forward messages:
