@@ -38,6 +38,6 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 
-httpServer.listen(PORT,"0.0.0.0", () => {
+httpServer.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
