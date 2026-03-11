@@ -32,6 +32,23 @@ const formatAddressForNetwork = (address: string, isTestnet: boolean): string =>
   }
 };
 
+const inferGenerationNetwork = (targetAddress: string, walletChain?: string): 'mainnet' | 'testnet' => {
+  if (walletChain === CHAIN.TESTNET) {
+    return 'testnet';
+  }
+
+  if (walletChain === CHAIN.MAINNET) {
+    return 'mainnet';
+  }
+
+  const trimmed = targetAddress.trim();
+  if (trimmed.startsWith('kQ') || trimmed.startsWith('0Q')) {
+    return 'testnet';
+  }
+
+  return 'mainnet';
+};
+
 const VanityGenerator = () => {
   const [prefix, setPrefix] = useState('');
   const [targetAddress, setTargetAddress] = useState('');
@@ -41,6 +58,7 @@ const VanityGenerator = () => {
 
   const [generatedAddress, setGeneratedAddress] = useState('');
   const [generatedSalt, setGeneratedSalt] = useState('');
+  const [generatedNetwork, setGeneratedNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -51,8 +69,9 @@ const VanityGenerator = () => {
   const [tonConnectUI] = useTonConnectUI();
   const userAddress = useTonAddress();
   const wallet = useTonWallet();
-  const isTestnet = wallet?.account.chain === CHAIN.TESTNET;
-  const displayGeneratedAddress = generatedAddress ? formatAddressForNetwork(generatedAddress, isTestnet) : '';
+  const walletIsTestnet = wallet?.account.chain === CHAIN.TESTNET;
+  const isGeneratedTestnet = generatedNetwork === 'testnet';
+  const displayGeneratedAddress = generatedAddress ? formatAddressForNetwork(generatedAddress, isGeneratedTestnet) : '';
 
   useEffect(() => {
     // Initialize socket
@@ -62,6 +81,7 @@ const VanityGenerator = () => {
       if (data.success) {
         setGeneratedAddress(data.address);
         setGeneratedSalt(data.salt);
+        setGeneratedNetwork(data.network === 'testnet' ? 'testnet' : 'mainnet');
         setIsGenerating(false);
         setIsBackground(false);
         setError('');
@@ -83,6 +103,7 @@ const VanityGenerator = () => {
     setError('');
     setGeneratedAddress('');
     setGeneratedSalt('');
+    setGeneratedNetwork('mainnet');
 
     if (!prefix.trim() || !targetAddress.trim()) {
       setError('Please fill in all fields');
@@ -97,6 +118,7 @@ const VanityGenerator = () => {
     setIsGenerating(true);
     setIsBackground(false);
     abortControllerRef.current = new AbortController();
+    const requestedNetwork = inferGenerationNetwork(targetAddress, wallet?.account.chain);
 
     try {
       const response = await axios.post(
@@ -105,6 +127,7 @@ const VanityGenerator = () => {
           prefix,
           matchType,
           targetAddress,
+          network: requestedNetwork,
           socketId: socketRef.current?.id
         },
         {
@@ -116,11 +139,13 @@ const VanityGenerator = () => {
       if (response.data.success) {
         if (response.data.status === 'processing') {
           // Backend is taking longer and switched to socket.io
+          setGeneratedNetwork(response.data.network === 'testnet' ? 'testnet' : requestedNetwork);
           setIsBackground(true);
         } else {
           // Found synchronously
           setGeneratedAddress(response.data.address);
           setGeneratedSalt(response.data.salt);
+          setGeneratedNetwork(response.data.network === 'testnet' ? 'testnet' : requestedNetwork);
           setIsGenerating(false);
           setIsBackground(false);
           setError('');
@@ -153,6 +178,11 @@ const VanityGenerator = () => {
       return;
     }
 
+    if (wallet && walletIsTestnet !== isGeneratedTestnet) {
+      setError(`Connected wallet is on ${walletIsTestnet ? 'testnet' : 'mainnet'}, but the vanity address was generated for ${generatedNetwork}`);
+      return;
+    }
+
     try {
       const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
       const targetAddr = Address.parse(targetAddress);
@@ -182,7 +212,7 @@ const VanityGenerator = () => {
       const stateInitBoc = stateInitCell.toBoc().toString('base64');
       const deploymentAddress = derivedAddress.toString({
         bounceable: true,
-        testOnly: isTestnet,
+        testOnly: isGeneratedTestnet,
         urlSafe: true,
       });
 
@@ -340,7 +370,7 @@ const VanityGenerator = () => {
             </div>
 
             <p className="label" style={{ marginTop: '8px', fontSize: '12px' }}>
-              Displaying the {isTestnet ? 'testnet' : 'mainnet'} user-friendly format. The raw contract address stays the same across networks.
+              Generated for {generatedNetwork}. The raw contract address stays the same across networks, but the user-friendly string changes.
             </p>
 
             <p className="label" style={{ marginTop: '12px', marginBottom: '12px' }}>

@@ -4,6 +4,7 @@ import { Address, beginCell, Cell, StateInit, contractAddress } from '@ton/core'
 import { getIO } from '../index'; // We will export the io instance in index.ts
 
 type MatchType = 'prefix' | 'suffix' | 'contains';
+type VanityNetwork = 'mainnet' | 'testnet';
 
 const PROXY_CODE_BOC = 'te6cckEBAgEAQAABFP8A9KQT9LzyyAsBAGLTMwGCCJiWgLmRW+DQ0wMwcbCRMODtRND6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsA9B+UgA==';
 
@@ -27,8 +28,12 @@ function matchesPattern(addressString: string, prefix: string, matchType: MatchT
   return normalizedAddress.includes(normalizedPrefix);
 }
 
+function normalizeNetwork(network: unknown): VanityNetwork {
+  return network === 'testnet' ? 'testnet' : 'mainnet';
+}
+
 export const generateVanityAddress = async (req: Request, res: Response) => {
-  const { prefix, matchType = 'prefix', targetAddress, socketId } = req.body;
+  const { prefix, matchType = 'prefix', targetAddress, socketId, network } = req.body;
 
   // Validation
   if (!prefix || typeof prefix !== 'string') {
@@ -47,6 +52,8 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
   }
 
   const cleanPrefix = prefix.trim().toUpperCase();
+  const normalizedNetwork = normalizeNetwork(network);
+  const isTestnet = normalizedNetwork === 'testnet';
 
   if (cleanPrefix.length === 0) return res.status(400).json({ success: false, error: 'Prefix cannot be empty' });
   if (cleanPrefix.length > 10) return res.status(400).json({ success: false, error: 'Prefix must be 10 characters or less' });
@@ -67,8 +74,8 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
 
   const searchLoop = () => {
     // We break the event loop periodically so Node isn't completely blocked
-    // 1000 is small enough to ensure the event loop ticks fast enough to catch timeout and HTTP responses
-    const batchSize = 1000;
+    // Larger batches improve throughput for easy patterns while still yielding often enough for HTTP and sockets.
+    const batchSize = 10000;
     let batchAttempts = 0;
 
     while (batchAttempts < batchSize) {
@@ -91,7 +98,7 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
       });
 
       // Convert to user-friendly bounceable format
-      const addressString = address.toString({ bounceable: true, testOnly: false });
+      const addressString = address.toString({ bounceable: true, testOnly: isTestnet, urlSafe: true });
 
       if (matchesPattern(addressString, cleanPrefix, normalizedMatchType)) {
         if (!backgroundMode) {
@@ -99,8 +106,10 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
           return res.json({
             success: true,
             address: addressString,
+            rawAddress: address.toRawString(),
             prefix: cleanPrefix,
             matchType: normalizedMatchType,
+            network: normalizedNetwork,
             attempts,
             salt: salt.toString(),
             targetAddress
@@ -112,8 +121,10 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
             io.to(socketId).emit('vanityFound', {
               success: true,
               address: addressString,
+              rawAddress: address.toRawString(),
               prefix: cleanPrefix,
               matchType: normalizedMatchType,
+              network: normalizedNetwork,
               attempts,
               salt: salt.toString(),
               targetAddress
@@ -132,6 +143,7 @@ export const generateVanityAddress = async (req: Request, res: Response) => {
       res.json({
         success: true,
         status: 'processing',
+        network: normalizedNetwork,
         message: 'Generation taking longer than expected. Continuing in background...',
       });
       // We purposefully do NOT return here, instead we schedule the next tick
