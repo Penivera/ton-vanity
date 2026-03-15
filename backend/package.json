@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "nest start --watch",
+    "dev:express": "npm run build && npm run start:express",
     "build": "nest build",
     "start": "node dist/main",
+    "start:express": "node dist/index.js",
     "lint": "eslint .",
     "db:migrate": "typeorm migration:run -d src/database/data-source.ts",
     "db:generate": "typeorm migration:generate -d src/database/data-source.ts",

@@ -1,5 +1,15 @@
-import { IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { MatchType, VanityNetwork } from '../entities/vanity-generation.entity';
+import { TargetAddressKind } from '../types/generation-metadata';
 
 export class CreateGenerationDto {
   @IsString()
@@ -11,8 +21,38 @@ export class CreateGenerationDto {
   @IsEnum(MatchType)
   matchType: MatchType;
 
+  @ValidateIf((dto: CreateGenerationDto) => (dto.targetKind ?? TargetAddressKind.CONTRACT) !== TargetAddressKind.TOKEN)
   @IsString()
+  @IsNotEmpty()
   targetAddress: string;
+
+  @IsOptional()
+  @IsEnum(TargetAddressKind)
+  targetKind?: TargetAddressKind;
+
+  @ValidateIf((dto: CreateGenerationDto) => dto.targetKind === TargetAddressKind.TOKEN)
+  @IsString()
+  @IsNotEmpty()
+  tokenMasterCodeBoc?: string;
+
+  @ValidateIf((dto: CreateGenerationDto) => dto.targetKind === TargetAddressKind.TOKEN)
+  @IsString()
+  @IsNotEmpty()
+  tokenWalletCodeBoc?: string;
+
+  @ValidateIf((dto: CreateGenerationDto) => dto.targetKind === TargetAddressKind.TOKEN)
+  @IsString()
+  @IsNotEmpty()
+  tokenAdminAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  tokenContentCellBoc?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+$/)
+  tokenTotalSupply?: string;
 
   @IsOptional()
   @IsEnum(VanityNetwork)

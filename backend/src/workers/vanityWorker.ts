@@ -1,158 +1,172 @@
 import type { Request, Response } from 'express';
-import { Address, beginCell, Cell, StateInit, contractAddress } from '@ton/core';
+import { MatchType, VanityNetwork } from '../vanity/entities/vanity-generation.entity';
 // Using the local IO server emitting
 import { getIO } from '../index'; // We will export the io instance in index.ts
+import {
+  DEFAULT_TARGET_ADDRESS_KIND,
+  TargetAddressKind,
+  TokenVanityConfig,
+} from '../vanity/types/generation-metadata';
+import { runVanitySearch } from './vanity-search';
 
-type MatchType = 'prefix' | 'suffix' | 'contains';
-type VanityNetwork = 'mainnet' | 'testnet';
-
-const PROXY_CODE_BOC = 'te6cckEBAgEAQAABFP8A9KQT9LzyyAsBAGLTMwGCCJiWgLmRW+DQ0wMwcbCRMODtRND6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsA9B+UgA==';
-
-function matchesPattern(addressString: string, prefix: string, matchType: MatchType): boolean {
-  const normalizedAddress = addressString.toUpperCase();
-  const normalizedPrefix = prefix.toUpperCase();
-
-  if (matchType === 'prefix') {
-    // TON addresses typically start with EQ or UQ. We check after the first 2 chars.
-    // Or we simply check the whole 48 character encoded string.
-    // e.g. EQxyz... => length 48
-    // We'll just check the base64 part, skipping the first 2 characters 'EQ'/'UQ'
-    const base64Part = normalizedAddress.substring(2);
-    if (matchType === 'prefix') return base64Part.startsWith(normalizedPrefix);
-  }
-
-  if (matchType === 'suffix') {
-    return normalizedAddress.endsWith(normalizedPrefix);
-  }
-
-  return normalizedAddress.includes(normalizedPrefix);
+function matchesPatternInput(matchType: unknown): matchType is MatchType {
+  return matchType === MatchType.PREFIX || matchType === MatchType.SUFFIX || matchType === MatchType.CONTAINS;
 }
 
 function normalizeNetwork(network: unknown): VanityNetwork {
-  return network === 'testnet' ? 'testnet' : 'mainnet';
+  return network === VanityNetwork.TESTNET ? VanityNetwork.TESTNET : VanityNetwork.MAINNET;
+}
+
+function isLikelyValidationError(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    text.includes('required') ||
+    text.includes('invalid') ||
+    text.includes('must be') ||
+    text.includes('missing') ||
+    text.includes('boc')
+  );
+}
+
+function buildTokenConfig(body: Request['body']): TokenVanityConfig {
+  return {
+    tokenMasterCodeBoc: body.tokenMasterCodeBoc,
+    tokenWalletCodeBoc: body.tokenWalletCodeBoc,
+    tokenAdminAddress: body.tokenAdminAddress,
+    tokenContentCellBoc: body.tokenContentCellBoc,
+    tokenTotalSupply: body.tokenTotalSupply,
+  };
 }
 
 export const generateVanityAddress = async (req: Request, res: Response) => {
-  const { prefix, matchType = 'prefix', targetAddress, socketId, network } = req.body;
+  const {
+    prefix,
+    matchType = MatchType.PREFIX,
+    targetAddress,
+    targetKind = DEFAULT_TARGET_ADDRESS_KIND,
+    socketId,
+    network,
+  } = req.body;
 
-  // Validation
   if (!prefix || typeof prefix !== 'string') {
     return res.status(400).json({ success: false, error: 'Prefix is required and must be a string' });
   }
 
-  if (!targetAddress || typeof targetAddress !== 'string') {
-    return res.status(400).json({ success: false, error: 'Target Address is required' });
+  if (!Object.values(TargetAddressKind).includes(targetKind)) {
+    return res.status(400).json({
+      success: false,
+      error: `targetKind must be one of: ${Object.values(TargetAddressKind).join(', ')}`,
+    });
   }
 
-  let parsedTargetAddress: Address;
-  try {
-    parsedTargetAddress = Address.parse(targetAddress);
-  } catch (e) {
-    return res.status(400).json({ success: false, error: 'Invalid Target Address format' });
+  if (!matchesPatternInput(matchType)) {
+    return res.status(400).json({ success: false, error: 'matchType must be one of: prefix, suffix, contains' });
   }
 
   const cleanPrefix = prefix.trim().toUpperCase();
   const normalizedNetwork = normalizeNetwork(network);
-  const isTestnet = normalizedNetwork === 'testnet';
 
-  if (cleanPrefix.length === 0) return res.status(400).json({ success: false, error: 'Prefix cannot be empty' });
-  if (cleanPrefix.length > 10) return res.status(400).json({ success: false, error: 'Prefix must be 10 characters or less' });
-  if (!/^[A-Z0-9]+$/.test(cleanPrefix)) return res.status(400).json({ success: false, error: 'Prefix must contain only alphanumeric characters' });
-  if (!['prefix', 'suffix', 'contains'].includes(matchType)) return res.status(400).json({ success: false, error: 'matchType must be one of: prefix, suffix, contains' });
+  if (cleanPrefix.length === 0) {
+    return res.status(400).json({ success: false, error: 'Prefix cannot be empty' });
+  }
 
-  const normalizedMatchType = matchType as MatchType;
+  if (cleanPrefix.length > 10) {
+    return res.status(400).json({ success: false, error: 'Prefix must be 10 characters or less' });
+  }
 
-  // Prepare Proxy Code Cell
-  const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
+  if (!/^[A-Z0-9]+$/.test(cleanPrefix)) {
+    return res.status(400).json({ success: false, error: 'Prefix must contain only alphanumeric characters' });
+  }
 
-  let attempts = 0;
-  let salt = BigInt(Math.floor(Math.random() * 1000000000)); // Start with a random salt
+  if (targetKind !== TargetAddressKind.TOKEN && (!targetAddress || typeof targetAddress !== 'string')) {
+    return res.status(400).json({ success: false, error: 'Target Address is required for wallet/contract mode' });
+  }
+
+  if (targetKind === TargetAddressKind.TOKEN) {
+    if (
+      !req.body.tokenMasterCodeBoc ||
+      !req.body.tokenWalletCodeBoc ||
+      !req.body.tokenAdminAddress ||
+      typeof req.body.tokenMasterCodeBoc !== 'string' ||
+      typeof req.body.tokenWalletCodeBoc !== 'string' ||
+      typeof req.body.tokenAdminAddress !== 'string'
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'Token mode requires tokenMasterCodeBoc, tokenWalletCodeBoc, and tokenAdminAddress to derive a Jetton master vanity address.',
+      });
+    }
+  }
 
   const startTime = Date.now();
-  const TIMEOUT_MS = 24000; // 24 seconds (Vercel standard timeout is 30s)
+  const TIMEOUT_MS = 24000;
   let backgroundMode = false;
 
-  const searchLoop = () => {
-    // We break the event loop periodically so Node isn't completely blocked
-    // Larger batches improve throughput for easy patterns while still yielding often enough for HTTP and sockets.
-    const batchSize = 10000;
-    let batchAttempts = 0;
-
-    while (batchAttempts < batchSize) {
-      salt++;
-      attempts++;
-
-      // Build Proxy Data Cell:
-      // ds~load_msg_addr() -> target_address
-      // ds~load_uint(64) -> salt
-      const proxyDataCell = beginCell()
-        .storeAddress(parsedTargetAddress)
-        .storeUint(salt, 64)
-        .endCell();
-
-      // Calculate state init address
-      // Workchain 0
-      const address = contractAddress(0, {
-        code: proxyCodeCell,
-        data: proxyDataCell
-      });
-
-      // Convert to user-friendly bounceable format
-      const addressString = address.toString({ bounceable: true, testOnly: isTestnet, urlSafe: true });
-
-      if (matchesPattern(addressString, cleanPrefix, normalizedMatchType)) {
-        if (!backgroundMode) {
-          // Send HTTP response directly
-          return res.json({
-            success: true,
-            address: addressString,
-            rawAddress: address.toRawString(),
-            prefix: cleanPrefix,
-            matchType: normalizedMatchType,
-            network: normalizedNetwork,
-            attempts,
-            salt: salt.toString(),
-            targetAddress
-          });
-        } else {
-          // Already sent HTTP response, pushing result to socket
-          const io = getIO();
-          if (io && socketId) {
-            io.to(socketId).emit('vanityFound', {
+  try {
+    const searchPromise = runVanitySearch(
+      {
+        pattern: cleanPrefix,
+        matchType,
+        targetAddress,
+        targetKind,
+        tokenConfig: targetKind === TargetAddressKind.TOKEN ? buildTokenConfig(req.body) : undefined,
+        network: normalizedNetwork,
+      },
+      {
+        onProgress: async () => {
+          if (!backgroundMode && Date.now() - startTime > TIMEOUT_MS) {
+            backgroundMode = true;
+            res.json({
               success: true,
-              address: addressString,
-              rawAddress: address.toRawString(),
-              prefix: cleanPrefix,
-              matchType: normalizedMatchType,
+              status: 'processing',
+              targetKind,
               network: normalizedNetwork,
-              attempts,
-              salt: salt.toString(),
-              targetAddress
+              message: 'Generation taking longer than expected. Continuing in background...',
             });
           }
-          return;
+        },
+      },
+    );
+
+    searchPromise
+      .then((result) => {
+        const payload = {
+          success: true,
+          address: result.address,
+          rawAddress: result.rawAddress,
+          prefix: cleanPrefix,
+          matchType,
+          targetKind,
+          network: normalizedNetwork,
+          attempts: result.attempts,
+          salt: result.salt,
+          targetAddress,
+        };
+
+        if (!backgroundMode) {
+          return res.json(payload);
         }
-      }
 
-      batchAttempts++;
-    }
+        const io = getIO();
+        if (io && socketId) {
+          io.to(socketId).emit('vanityFound', payload);
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Unknown error';
 
-    // Check time limit
-    if (!backgroundMode && Date.now() - startTime > TIMEOUT_MS) {
-      backgroundMode = true;
-      res.json({
-        success: true,
-        status: 'processing',
-        network: normalizedNetwork,
-        message: 'Generation taking longer than expected. Continuing in background...',
+        if (!backgroundMode) {
+          return res.status(isLikelyValidationError(message) ? 400 : 500).json({ success: false, error: message });
+        }
+
+        const io = getIO();
+        if (io && socketId) {
+          io.to(socketId).emit('vanityFound', { success: false, error: message, targetKind });
+        }
       });
-      // We purposefully do NOT return here, instead we schedule the next tick
-    }
-
-    // Yield solidly to the event loop so HTTP and Sockets can process
-    setTimeout(searchLoop, 0);
-  };
-
-  // Start the background loop
-  searchLoop();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(isLikelyValidationError(message) ? 400 : 500).json({ success: false, error: message });
+  }
 };

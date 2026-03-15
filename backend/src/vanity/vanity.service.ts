@@ -8,6 +8,7 @@ import {
   VanityNetwork,
   GenerationStatus,
 } from './entities/vanity-generation.entity';
+import { DEFAULT_TARGET_ADDRESS_KIND, TargetAddressKind } from './types/generation-metadata';
 
 @Injectable()
 export class VanityService {
@@ -24,7 +25,21 @@ export class VanityService {
     generation.matchType = dto.matchType;
     generation.network = dto.network ?? VanityNetwork.TESTNET;
     generation.status = GenerationStatus.PENDING;
-    generation.backgroundJobId = JSON.stringify({ targetAddress: dto.targetAddress });
+    const targetKind = dto.targetKind ?? DEFAULT_TARGET_ADDRESS_KIND;
+    generation.backgroundJobId = JSON.stringify({
+      targetAddress: dto.targetAddress,
+      targetKind,
+      tokenConfig:
+        targetKind === TargetAddressKind.TOKEN
+          ? {
+              tokenMasterCodeBoc: dto.tokenMasterCodeBoc,
+              tokenWalletCodeBoc: dto.tokenWalletCodeBoc,
+              tokenAdminAddress: dto.tokenAdminAddress,
+              tokenContentCellBoc: dto.tokenContentCellBoc,
+              tokenTotalSupply: dto.tokenTotalSupply,
+            }
+          : undefined,
+    });
     generation.isDeployed = false;
 
     return this.generationRepository.save(generation);

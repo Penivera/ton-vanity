@@ -3,6 +3,8 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { generateVanityAddress } from './workers/vanityWorker';
+import { resolveTokenTemplate } from './workers/tokenTemplate';
+import { exportTokenDeploymentPayload } from './workers/tokenExport';
 
 const app = express();
 const httpServer = createServer(app);
@@ -26,6 +28,8 @@ app.get('/api/health', (req, res) => {
 
 // Routes
 app.post('/api/vanity-address', generateVanityAddress);
+app.post('/api/token-template', resolveTokenTemplate);
+app.post('/api/token-deployment-payload', exportTokenDeploymentPayload);
 
 // WebSocket connection for real-time generation
 io.on('connection', (socket) => {

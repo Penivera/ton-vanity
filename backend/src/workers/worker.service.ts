@@ -3,6 +3,11 @@ import { TelegramNotificationService } from '../notifications/telegram-notificat
 import { User } from '../users/entities/user.entity';
 import { GenerationStatus, MatchType, VanityGeneration } from '../vanity/entities/vanity-generation.entity';
 import { VanityService } from '../vanity/vanity.service';
+import {
+  DEFAULT_TARGET_ADDRESS_KIND,
+  GenerationMetadata,
+  TargetAddressKind,
+} from '../vanity/types/generation-metadata';
 import { runVanitySearch } from './vanity-search';
 
 @Injectable()
@@ -57,15 +62,18 @@ export class WorkerService implements OnModuleInit {
 
   private async processGeneration(generation: VanityGeneration): Promise<void> {
     const metadata = this.parseMetadata(generation.backgroundJobId);
-    const targetAddress = metadata.targetAddress;
-    if (!targetAddress) {
+    const targetKind = metadata.targetKind ?? DEFAULT_TARGET_ADDRESS_KIND;
+
+    if (targetKind !== TargetAddressKind.TOKEN && !metadata.targetAddress) {
       throw new Error('Missing target address in generation metadata');
     }
 
     const result = await runVanitySearch({
       pattern: generation.prefix || generation.suffix || '',
       matchType: generation.matchType as MatchType,
-      targetAddress,
+      targetAddress: metadata.targetAddress,
+      targetKind,
+      tokenConfig: metadata.tokenConfig,
       network: generation.network,
     });
 
@@ -87,13 +95,17 @@ export class WorkerService implements OnModuleInit {
     }
   }
 
-  private parseMetadata(raw: string | null): { targetAddress?: string } {
+  private parseMetadata(raw: string | null): Partial<GenerationMetadata> {
     if (!raw) {
       return {};
     }
 
     try {
-      return JSON.parse(raw) as { targetAddress?: string };
+      const parsed = JSON.parse(raw) as Partial<GenerationMetadata>;
+      return {
+        ...parsed,
+        targetKind: parsed.targetKind ?? DEFAULT_TARGET_ADDRESS_KIND,
+      };
     } catch {
       return {};
     }

@@ -1,5 +1,10 @@
 import { Address, beginCell, Cell, contractAddress } from '@ton/core';
 import { MatchType, VanityNetwork } from '../vanity/entities/vanity-generation.entity';
+import {
+  DEFAULT_TARGET_ADDRESS_KIND,
+  TargetAddressKind,
+  TokenVanityConfig,
+} from '../vanity/types/generation-metadata';
 
 const PROXY_CODE_BOC =
   'te6cckEBAgEAQAABFP8A9KQT9LzyyAsBAGLTMwGCCJiWgLmRW+DQ0wMwcbCRMODtRND6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsA9B+UgA==';
@@ -7,7 +12,9 @@ const PROXY_CODE_BOC =
 export interface VanitySearchInput {
   pattern: string;
   matchType: MatchType;
-  targetAddress: string;
+  targetAddress?: string;
+  targetKind?: TargetAddressKind;
+  tokenConfig?: TokenVanityConfig;
   network: VanityNetwork;
 }
 
@@ -21,6 +28,74 @@ export interface VanitySearchResult {
 export interface VanitySearchCallbacks {
   onProgress?: (attempts: number) => Promise<void> | void;
   shouldStop?: () => Promise<boolean> | boolean;
+}
+
+function decodeBocCell(name: string, bocBase64: string): Cell {
+  let cells: Cell[];
+
+  try {
+    cells = Cell.fromBoc(Buffer.from(bocBase64, 'base64'));
+  } catch {
+    throw new Error(`${name} is not a valid BOC`);
+  }
+
+  if (cells.length === 0) {
+    throw new Error(`${name} BOC did not contain a root cell`);
+  }
+
+  return cells[0];
+}
+
+function buildAddressResolver(input: VanitySearchInput): (salt: bigint) => Address {
+  const targetKind = input.targetKind ?? DEFAULT_TARGET_ADDRESS_KIND;
+
+  if (targetKind === TargetAddressKind.TOKEN) {
+    const tokenConfig = input.tokenConfig;
+
+    if (!tokenConfig) {
+      throw new Error('Missing tokenConfig for token target kind');
+    }
+
+    const masterCodeCell = decodeBocCell('tokenMasterCodeBoc', tokenConfig.tokenMasterCodeBoc);
+    const walletCodeCell = decodeBocCell('tokenWalletCodeBoc', tokenConfig.tokenWalletCodeBoc);
+    const adminAddress = Address.parse(tokenConfig.tokenAdminAddress);
+    const contentCell = tokenConfig.tokenContentCellBoc
+      ? decodeBocCell('tokenContentCellBoc', tokenConfig.tokenContentCellBoc)
+      : beginCell().storeUint(0, 8).endCell();
+
+    const totalSupply = tokenConfig.tokenTotalSupply ? BigInt(tokenConfig.tokenTotalSupply) : 0n;
+
+    return (salt: bigint) => {
+      // Standard Jetton data fields are preserved; the trailing salt adds address entropy.
+      const dataCell = beginCell()
+        .storeCoins(totalSupply)
+        .storeAddress(adminAddress)
+        .storeRef(contentCell)
+        .storeRef(walletCodeCell)
+        .storeUint(salt, 64)
+        .endCell();
+
+      return contractAddress(0, {
+        code: masterCodeCell,
+        data: dataCell,
+      });
+    };
+  }
+
+  if (!input.targetAddress) {
+    throw new Error('targetAddress is required for wallet/contract target kinds');
+  }
+
+  const parsedTargetAddress = Address.parse(input.targetAddress);
+  const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
+
+  return (salt: bigint) => {
+    const proxyDataCell = beginCell().storeAddress(parsedTargetAddress).storeUint(salt, 64).endCell();
+    return contractAddress(0, {
+      code: proxyCodeCell,
+      data: proxyDataCell,
+    });
+  };
 }
 
 function matchesPattern(addressString: string, pattern: string, matchType: MatchType): boolean {
@@ -42,8 +117,7 @@ export async function runVanitySearch(
   input: VanitySearchInput,
   callbacks: VanitySearchCallbacks = {},
 ): Promise<VanitySearchResult> {
-  const parsedTargetAddress = Address.parse(input.targetAddress);
-  const proxyCodeCell = Cell.fromBoc(Buffer.from(PROXY_CODE_BOC, 'base64'))[0];
+  const resolveAddress = buildAddressResolver(input);
   const isTestnet = input.network === VanityNetwork.TESTNET;
   const normalizedPattern = input.pattern.trim().toUpperCase();
 
@@ -55,11 +129,7 @@ export async function runVanitySearch(
       salt += 1n;
       attempts += 1;
 
-      const proxyDataCell = beginCell().storeAddress(parsedTargetAddress).storeUint(salt, 64).endCell();
-      const address = contractAddress(0, {
-        code: proxyCodeCell,
-        data: proxyDataCell,
-      });
+      const address = resolveAddress(salt);
 
       const addressString = address.toString({ bounceable: true, testOnly: isTestnet, urlSafe: true });
 
