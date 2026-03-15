@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "nest start --watch",
     "dev:express": "npm run build && npm run start:express",
-    "build": "nest build",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/main",
     "start:express": "node dist/index.js",
     "lint": "eslint .",
@@ -36,8 +36,10 @@
     "pg": "^8.11.3",
     "redis": "^4.6.12",
     "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "sqlite3": "^5.1.6",
+    "typescript": "^5.4.5",
     "typeorm": "^0.3.19",
     "uuid": "^13.0.0"
   },
@@ -48,7 +50,6 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.2",
     "@types/passport-jwt": "^4.0.1",
-    "@types/uuid": "^10.0.0",
-    "typescript": "^5.4.5"
+    "@types/uuid": "^10.0.0"
   }
 }
