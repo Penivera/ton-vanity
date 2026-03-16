@@ -8,6 +8,7 @@ import { Address, beginCell, Cell, contractAddress, storeStateInit } from '@ton/
 import type { StateInit } from '@ton/core';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const QUEUE_API_BASE_URL = (import.meta.env.VITE_NEST_API_URL || API_BASE_URL).replace(/\/$/, '');
 const PROXY_CODE_BOC = 'te6cckEBAgEAQAABFP8A9KQT9LzyyAsBAGLTMwGCCJiWgLmRW+DQ0wMwcbCRMODtRND6QDBwgBDIywVYzxYh+gLLagHPFsmAQPsA9B+UgA==';
 
 type MatchType = 'prefix' | 'suffix' | 'contains';
@@ -29,6 +30,36 @@ interface VanityFoundEvent {
   network?: 'mainnet' | 'testnet';
   targetKind?: TargetKind;
   error?: string;
+}
+
+interface QueuedGeneration {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  generatedAddress: string | null;
+  generatedSalt: number | null;
+  network: 'mainnet' | 'testnet';
+  backgroundJobId: string | null;
+  errorMessage: string | null;
+}
+
+interface TelegramWebAppWindow extends Window {
+  Telegram?: {
+    WebApp?: {
+      initData?: string;
+    };
+  };
+}
+
+interface StoredGenerationMetadata {
+  targetAddress?: string;
+  targetKind?: TargetKind;
+  tokenConfig?: {
+    tokenMasterCodeBoc?: string;
+    tokenWalletCodeBoc?: string;
+    tokenAdminAddress?: string;
+    tokenContentCellBoc?: string;
+    tokenTotalSupply?: string;
+  };
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -119,6 +150,9 @@ const VanityGenerator = () => {
   const [isLoadingTokenTemplate, setIsLoadingTokenTemplate] = useState(false);
   const [isExportingPayload, setIsExportingPayload] = useState(false);
   const [isBackground, setIsBackground] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+  const [authState, setAuthState] = useState<'idle' | 'authenticating' | 'ready' | 'unavailable' | 'failed'>('idle');
+  const [queuedGenerationId, setQueuedGenerationId] = useState('');
 
   const [generatedAddress, setGeneratedAddress] = useState('');
   const [generatedSalt, setGeneratedSalt] = useState('');
@@ -130,6 +164,7 @@ const VanityGenerator = () => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const queuePollRef = useRef<number | null>(null);
   const difficulty = getDifficulty(prefix, matchType);
 
   const [tonConnectUI] = useTonConnectUI();
@@ -157,6 +192,170 @@ const VanityGenerator = () => {
   }, [tokenAdminAddress, userAddress]);
 
   useEffect(() => {
+    const storedToken = localStorage.getItem('vanityJwtToken');
+    if (storedToken) {
+      setAuthToken(storedToken);
+      setAuthState('ready');
+      return;
+    }
+
+    const telegramWindow = window as TelegramWebAppWindow;
+    const initData = telegramWindow.Telegram?.WebApp?.initData?.trim();
+    if (!initData) {
+      setAuthState('unavailable');
+      return;
+    }
+
+    setAuthState('authenticating');
+    void axios
+      .post(`${QUEUE_API_BASE_URL}/auth/telegram`, { initData })
+      .then((response) => {
+        const token = response.data?.accessToken;
+        if (!token || typeof token !== 'string') {
+          throw new Error('Missing access token in auth response');
+        }
+
+        localStorage.setItem('vanityJwtToken', token);
+        setAuthToken(token);
+        setAuthState('ready');
+      })
+      .catch(() => {
+        setAuthState('failed');
+      });
+  }, []);
+
+  const applyGenerationMetadata = (metadataRaw: string | null) => {
+    if (!metadataRaw) {
+      return;
+    }
+
+    try {
+      const metadata = JSON.parse(metadataRaw) as StoredGenerationMetadata;
+      if (metadata.targetKind) {
+        setGeneratedTargetKind(metadata.targetKind);
+        setTargetKind(metadata.targetKind);
+      }
+
+      if (metadata.targetAddress) {
+        setTargetAddress(metadata.targetAddress);
+      }
+
+      if (metadata.tokenConfig) {
+        if (metadata.tokenConfig.tokenMasterCodeBoc) setTokenMasterCodeBoc(metadata.tokenConfig.tokenMasterCodeBoc);
+        if (metadata.tokenConfig.tokenWalletCodeBoc) setTokenWalletCodeBoc(metadata.tokenConfig.tokenWalletCodeBoc);
+        if (metadata.tokenConfig.tokenAdminAddress) setTokenAdminAddress(metadata.tokenConfig.tokenAdminAddress);
+        if (metadata.tokenConfig.tokenContentCellBoc) setTokenContentCellBoc(metadata.tokenConfig.tokenContentCellBoc);
+        if (metadata.tokenConfig.tokenTotalSupply) setTokenTotalSupply(metadata.tokenConfig.tokenTotalSupply);
+      }
+    } catch {
+      // Ignore malformed metadata from old rows.
+    }
+  };
+
+  const applyQueuedGenerationResult = (generation: QueuedGeneration) => {
+    if (generation.generatedAddress) {
+      setGeneratedAddress(generation.generatedAddress);
+    }
+    if (generation.generatedSalt !== null && generation.generatedSalt !== undefined) {
+      setGeneratedSalt(String(generation.generatedSalt));
+    }
+
+    setGeneratedNetwork(generation.network === 'testnet' ? 'testnet' : 'mainnet');
+    applyGenerationMetadata(generation.backgroundJobId);
+  };
+
+  const stopQueuePolling = () => {
+    if (queuePollRef.current) {
+      window.clearInterval(queuePollRef.current);
+      queuePollRef.current = null;
+    }
+  };
+
+  const startQueuePolling = (generationId: string, token: string) => {
+    stopQueuePolling();
+    queuePollRef.current = window.setInterval(() => {
+      void axios
+        .get(`${QUEUE_API_BASE_URL}/vanity/generations/${generationId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        .then((response) => {
+          const generation = response.data as QueuedGeneration;
+
+          if (generation.status === 'completed') {
+            applyQueuedGenerationResult(generation);
+            setQueuedGenerationId(generation.id);
+            setIsGenerating(false);
+            setIsBackground(false);
+            setError('');
+            stopQueuePolling();
+            return;
+          }
+
+          if (generation.status === 'failed' || generation.status === 'cancelled') {
+            setIsGenerating(false);
+            setIsBackground(false);
+            setError(generation.errorMessage || 'Queued generation failed');
+            stopQueuePolling();
+          }
+        })
+        .catch((err) => {
+          if (axios.isAxiosError(err) && err.response?.status === 401) {
+            localStorage.removeItem('vanityJwtToken');
+            setAuthToken('');
+            setAuthState('failed');
+            setIsGenerating(false);
+            setIsBackground(false);
+            setError('Session expired. Reload the app inside Telegram to re-authenticate.');
+            stopQueuePolling();
+          }
+        });
+    }, 2000);
+  };
+
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+
+    void axios
+      .get(`${QUEUE_API_BASE_URL}/vanity/generations`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      })
+      .then((response) => {
+        const generations = response.data as QueuedGeneration[];
+        if (!Array.isArray(generations) || generations.length === 0) {
+          return;
+        }
+
+        const active = generations.find((g) => g.status === 'pending' || g.status === 'running');
+        if (active) {
+          setQueuedGenerationId(active.id);
+          setIsGenerating(true);
+          setIsBackground(true);
+          startQueuePolling(active.id, authToken);
+          return;
+        }
+
+        if (generatedAddress) {
+          return;
+        }
+
+        const latestCompleted = generations.find((g) => g.status === 'completed' && g.generatedAddress && g.generatedSalt !== null);
+        if (latestCompleted) {
+          setQueuedGenerationId(latestCompleted.id);
+          applyQueuedGenerationResult(latestCompleted);
+        }
+      })
+      .catch(() => {
+        // Keep direct mode available if queue API is not reachable.
+      });
+  }, [authToken]);
+
+  useEffect(() => {
     // Initialize socket
     socketRef.current = io(API_BASE_URL || window.location.origin);
 
@@ -179,6 +378,7 @@ const VanityGenerator = () => {
     return () => {
       if (abortControllerRef.current) abortControllerRef.current.abort();
       if (socketRef.current) socketRef.current.disconnect();
+      stopQueuePolling();
     };
   }, []);
 
@@ -222,6 +422,39 @@ const VanityGenerator = () => {
     const requestedNetwork = inferGenerationNetwork(networkProbeAddress, wallet?.account.chain);
 
     try {
+      if (authToken) {
+        const queueResponse = await axios.post(
+          `${QUEUE_API_BASE_URL}/vanity/generate`,
+          {
+            pattern: prefix,
+            matchType,
+            targetAddress: isTokenMode ? undefined : targetAddress,
+            targetKind,
+            tokenMasterCodeBoc: isTokenMode ? tokenMasterCodeBoc.trim() : undefined,
+            tokenWalletCodeBoc: isTokenMode ? tokenWalletCodeBoc.trim() : undefined,
+            tokenAdminAddress: isTokenMode ? tokenAdminAddress.trim() : undefined,
+            tokenContentCellBoc: isTokenMode && tokenContentCellBoc.trim() ? tokenContentCellBoc.trim() : undefined,
+            tokenTotalSupply: isTokenMode && tokenTotalSupply.trim() ? tokenTotalSupply.trim() : undefined,
+            network: requestedNetwork,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          },
+        );
+
+        const generationId = queueResponse.data?.generationId as string | undefined;
+        if (!generationId) {
+          throw new Error('Failed to enqueue generation');
+        }
+
+        setQueuedGenerationId(generationId);
+        setIsBackground(true);
+        startQueuePolling(generationId, authToken);
+        return;
+      }
+
       const payload = {
         prefix,
         matchType,
@@ -548,6 +781,7 @@ const VanityGenerator = () => {
 
   const handleCancel = () => {
     if (abortControllerRef.current) abortControllerRef.current.abort();
+    stopQueuePolling();
     setIsGenerating(false);
     setIsBackground(false);
   };
@@ -594,6 +828,16 @@ const VanityGenerator = () => {
             ? 'Generate a vanity Jetton master address from your token contract code.'
             : 'Generate a vanity address that forwards to your contract'}
         </p>
+        <p className="label" style={{ marginTop: '8px', fontSize: '12px' }}>
+          {authState === 'ready'
+            ? 'Queue mode enabled: jobs are persisted and can be resumed later.'
+            : 'Direct mode enabled: open from Telegram WebApp to enable persisted queue mode.'}
+        </p>
+        {queuedGenerationId && (
+          <p className="label" style={{ marginTop: '4px', fontSize: '12px' }}>
+            Active generation ID: {queuedGenerationId}
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleGenerate} className="card__form">
