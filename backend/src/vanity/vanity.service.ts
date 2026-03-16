@@ -9,6 +9,8 @@ import {
   GenerationStatus,
 } from './entities/vanity-generation.entity';
 import { DEFAULT_TARGET_ADDRESS_KIND, TargetAddressKind } from './types/generation-metadata';
+import { getVanityQueue } from '../workers/queue';
+import { VANITY_GENERATION_QUEUE } from '../workers/queue.constants';
 
 @Injectable()
 export class VanityService {
@@ -42,7 +44,27 @@ export class VanityService {
     });
     generation.isDeployed = false;
 
-    return this.generationRepository.save(generation);
+    const saved = await this.generationRepository.save(generation);
+
+    const queue = getVanityQueue();
+    const attempts = Number(process.env.WORKER_JOB_ATTEMPTS || 3);
+    const backoffMs = Number(process.env.WORKER_JOB_BACKOFF_MS || 5000);
+    await queue.add(
+      VANITY_GENERATION_QUEUE,
+      { generationId: saved.id },
+      {
+        jobId: saved.id,
+        attempts,
+        backoff: {
+          type: 'exponential',
+          delay: backoffMs,
+        },
+        removeOnComplete: 1000,
+        removeOnFail: 1000,
+      },
+    );
+
+    return saved;
   }
 
   async listForUser(userId: string): Promise<VanityGeneration[]> {
@@ -106,6 +128,13 @@ export class VanityService {
 
   async getGeneration(id: string): Promise<VanityGeneration | null> {
     return this.generationRepository.findOne({ where: { id } });
+  }
+
+  async getGenerationWithUser(id: string): Promise<VanityGeneration | null> {
+    return this.generationRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
   }
 
   async updateGenerationStatus(

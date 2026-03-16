@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Job, Worker } from 'bullmq';
 import { TelegramNotificationService } from '../notifications/telegram-notification.service';
 import { User } from '../users/entities/user.entity';
 import { GenerationStatus, MatchType, VanityGeneration } from '../vanity/entities/vanity-generation.entity';
@@ -9,12 +10,14 @@ import {
   TargetAddressKind,
 } from '../vanity/types/generation-metadata';
 import { runVanitySearch } from './vanity-search';
+import { VANITY_GENERATION_QUEUE } from './queue.constants';
 
 @Injectable()
-export class WorkerService implements OnModuleInit {
+export class WorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WorkerService.name);
   private isBusy = false;
   private currentGenerationId: string | null = null;
+  private worker: Worker<{ generationId: string }> | null = null;
 
   constructor(
     private readonly vanityService: VanityService,
@@ -22,38 +25,78 @@ export class WorkerService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    setInterval(() => {
-      void this.tick();
-    }, 1500);
+    const shouldRunWorker = process.env.ENABLE_BULLMQ_WORKER === 'true';
+    if (!shouldRunWorker) {
+      this.logger.log('BullMQ worker disabled for this process');
+      return;
+    }
+
+    this.worker = new Worker<{ generationId: string }>(
+      VANITY_GENERATION_QUEUE,
+      async (job: Job<{ generationId: string }>) => {
+        await this.processById(job);
+      },
+      {
+        connection: this.getRedisConnection(),
+        concurrency: Number(process.env.WORKER_CONCURRENCY || 1),
+      },
+    );
+
+    this.worker.on('completed', (job) => {
+      this.logger.log(`Completed generation job ${job.id}`);
+    });
+
+    this.worker.on('failed', (job, error) => {
+      const id = job?.id || 'unknown';
+      this.logger.error(`Generation job ${id} failed: ${error.message}`);
+    });
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (!this.worker) {
+      return;
+    }
+
+    await this.worker.close();
+    this.worker = null;
   }
 
   getCurrentState() {
     return {
       isBusy: this.isBusy,
       currentGenerationId: this.currentGenerationId,
+      workerEnabled: process.env.ENABLE_BULLMQ_WORKER === 'true',
     };
   }
 
-  private async tick(): Promise<void> {
-    if (this.isBusy) {
-      return;
-    }
-
-    const next = await this.vanityService.findNextPending();
-    if (!next) {
-      return;
+  private async processById(job: Job<{ generationId: string }>): Promise<void> {
+    const generationId = job.data.generationId;
+    const generation = await this.vanityService.getGenerationWithUser(generationId);
+    if (!generation) {
+      throw new Error(`Generation ${generationId} not found`);
     }
 
     this.isBusy = true;
-    this.currentGenerationId = next.id;
+    this.currentGenerationId = generation.id;
 
     try {
-      await this.vanityService.updateStatus(next.id, GenerationStatus.RUNNING);
-      await this.processGeneration(next);
+      await this.vanityService.updateStatus(generation.id, GenerationStatus.RUNNING);
+      await this.processGeneration(generation);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Generation failed for ${next.id}: ${message}`);
-      await this.vanityService.updateStatus(next.id, GenerationStatus.FAILED, message);
+      this.logger.error(`Generation failed for ${generation.id}: ${message}`);
+
+      const totalAttempts = Number(job.opts.attempts || 1);
+      const nextAttempt = job.attemptsMade + 1;
+      const willRetry = nextAttempt < totalAttempts;
+
+      if (willRetry) {
+        await this.vanityService.updateStatus(generation.id, GenerationStatus.PENDING, `Retry ${nextAttempt}/${totalAttempts}: ${message}`);
+      } else {
+        await this.vanityService.updateStatus(generation.id, GenerationStatus.FAILED, message);
+      }
+
+      throw error;
     } finally {
       this.currentGenerationId = null;
       this.isBusy = false;
@@ -109,5 +152,18 @@ export class WorkerService implements OnModuleInit {
     } catch {
       return {};
     }
+  }
+
+  private getRedisConnection() {
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl && redisUrl.trim().length > 0) {
+      return { url: redisUrl };
+    }
+
+    return {
+      host: process.env.REDIS_HOST || '127.0.0.1',
+      port: Number(process.env.REDIS_PORT || 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+    };
   }
 }

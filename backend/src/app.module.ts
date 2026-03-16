@@ -5,6 +5,7 @@ import { UsersModule } from './users/users.module';
 import { VanityModule } from './vanity/vanity.module';
 import { WorkersModule } from './workers/workers.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
 import { User } from './users/entities/user.entity';
 import { VanityGeneration } from './vanity/entities/vanity-generation.entity';
 
@@ -27,6 +28,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     UsersModule,
     VanityModule,
     NotificationsModule,
+    AdminModule,
     WorkersModule,
   ],
   controllers: [],
